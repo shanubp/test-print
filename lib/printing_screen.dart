@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:blue_thermal_printer/blue_thermal_printer.dart';
 import 'package:esc_pos_printer_plus/esc_pos_printer_plus.dart';
 import 'package:esc_pos_utils_plus/esc_pos_utils_plus.dart';
 import 'package:flutter/material.dart';
@@ -9,8 +10,6 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:screenshot/screenshot.dart';
 import 'package:image/image.dart' as img;
 import 'package:url_launcher/url_launcher.dart';
-
-double fontSize = 0;
 
 class MyHomePage extends StatefulWidget {
   const MyHomePage({super.key});
@@ -24,22 +23,29 @@ class _MyHomePageState extends State<MyHomePage> {
   @override
   void initState() {
     _getDevicelist();
+    _getBluetoothDeviceList();
     // TODO: implement initState
     super.initState();
   }
 
   FlutterUsbPrinter flutterUsbPrinter = FlutterUsbPrinter();
+  BlueThermalPrinter printer = BlueThermalPrinter.instance;
+
   bool connected = false;
   List<Map<String, dynamic>> devices = [];
+  List<BluetoothDevice> bluetoothDevices = [];
+
 
   ScreenshotController screenController = ScreenshotController();
   TextEditingController content = TextEditingController();
 
+
+  // get usb devices
   _getDevicelist() async {
     List<Map<String, dynamic>> results = [];
     results = await FlutterUsbPrinter.getUSBDeviceList();
-    for (dynamic device in results) {
-      _connect(int.parse(device['vendorId']), int.parse(device['productId']));
+    for (var device in results) {
+     await _connect(int.parse(device['vendorId']), int.parse(device['productId']));
     }
     if (mounted) {
       setState(() {
@@ -48,19 +54,74 @@ class _MyHomePageState extends State<MyHomePage> {
     }
   }
 
-  _connect(int vendorId, int productId) async {
-    bool? returned;
-    try {
-      returned = await flutterUsbPrinter.connect(vendorId, productId);
-    } on PlatformException {}
-    if (returned!) {
-      setState(() {
-        connected = true;
-      });
-    }
+  // usb connection
+   _connect(int vendorId, int productId) async {
+     try {
+       bool? result = await flutterUsbPrinter.connect(vendorId, productId);
+       if (result == true) {
+         setState(() {
+           connected = true;
+         });
+       }
+     } catch (e) {
+       print("Error connecting USB device: $e");
+     }
   }
 
-  getPrint() async {
+
+  // get bluetooth device
+  _getBluetoothDeviceList() async {
+    if (await Permission.bluetoothScan.request().isGranted &&
+        await Permission.bluetoothConnect.request().isGranted ) {
+      List<BluetoothDevice> devices = await printer.getBondedDevices();
+      setState(() {
+        bluetoothDevices = devices;
+      });
+    } else {
+      print("Bluetooth permissions not granted");
+    }
+    }
+
+   // bluetooth connection
+  Future<bool> _connectBluetooth(BuildContext context) async {
+    if (await printer.isConnected ?? false) {
+      return true;
+    }
+
+    if (bluetoothDevices.isNotEmpty) {
+      BluetoothDevice? selectedDevice = await showDialog<BluetoothDevice>(
+        context: context,
+        builder: (context) {
+          return AlertDialog(
+            title: const Text("Select Printer"),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: bluetoothDevices.map((device) {
+                return ListTile(
+                  title: Text(device.name ?? "Unknown"),
+                  subtitle: Text(device.address ?? "No address"),
+                  onTap: () => Navigator.pop(context, device),
+                );
+              }).toList(),
+            ),
+          );
+        },
+      );
+
+      if (selectedDevice != null) {
+        await printer.connect(selectedDevice);
+        return true;
+      } else {
+        print("No device selected!");
+      }
+    } else {
+      print("No paired devices found!");
+    }
+
+    return false;
+    }
+
+  Future<void> getPrint() async {
     final CapabilityProfile profile = await CapabilityProfile.load();
     final generator = Generator(PaperSize.mm80, profile);
     List<int> bytes = [];
@@ -79,20 +140,22 @@ class _MyHomePageState extends State<MyHomePage> {
               )
             ],
           ),
-        ), delay: Duration(microseconds: 500)
+        )
     );
     if (captureImage.isNotEmpty) {
-      final img.Image image2 = img.decodeImage(captureImage)!;
-      img.Image thumbnail = img.copyResize(
-          image2, width: 480, maintainAspect: false);
+      final img.Image image = img.decodeImage(captureImage)!;
+     final img.Image resizedImage = img.copyResize(
+          image, width: 480, maintainAspect: false);
 
-      bytes += generator.drawer(pin: PosDrawer.pin2);
-      bytes += generator.imageRaster(thumbnail);
+      // bytes += generator.drawer(pin: PosDrawer.pin2);
+      bytes += generator.imageRaster(resizedImage);
       bytes += generator.feed(2);
       bytes += generator.cut();
       // print(bytes);
       // print(image2);
 
+      final Uint8List uint8ListBytes = Uint8List.fromList(bytes);
+      print(uint8ListBytes);
     }
   }
 

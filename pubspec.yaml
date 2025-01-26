@@ -43,6 +43,7 @@ dependencies:
   flutter_usb_printer: ^0.1.0+1
   permission_handler: ^10.0.0
   url_launcher: ^6.1.5
+  blue_thermal_printer: ^1.1.0
 
 dev_dependencies:
   flutter_test:
