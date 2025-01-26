@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'package:blue_thermal_printer/blue_thermal_printer.dart';
 import 'package:esc_pos_utils_plus/esc_pos_utils_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -29,13 +28,8 @@ class _MyHomePageState extends State<MyHomePage> {
 
   FlutterUsbPrinter flutterUsbPrinter = FlutterUsbPrinter();
 
-  // BlueThermalPrinter printer = BlueThermalPrinter.instance;
-
   bool connected = false;
   List<Map<String, dynamic>> devices = [];
-
-  // List<BluetoothDevice> bluetoothDevices = [];
-
 
   ScreenshotController screenController = ScreenshotController();
   TextEditingController content = TextEditingController();
@@ -45,9 +39,14 @@ class _MyHomePageState extends State<MyHomePage> {
   _getDevicelist() async {
     List<Map<String, dynamic>> results = [];
     results = await FlutterUsbPrinter.getUSBDeviceList();
-    for (var device in results) {
-      await _connect(
-          int.parse(device['vendorId']), int.parse(device['productId']));
+    if(results.isEmpty){
+      ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('No Printer Found')));
+    }else {
+      for (var device in results) {
+        await _connect(
+            int.parse(device['vendorId']), int.parse(device['productId']));
+      }
     }
     if (mounted) {
       setState(() {
@@ -66,64 +65,14 @@ class _MyHomePageState extends State<MyHomePage> {
         });
       }
     } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Error connecting USB device: $e")));
       print("Error connecting USB device: $e");
     }
   }
 
 
-  // // get bluetooth device
-  // _getBluetoothDeviceList() async {
-  //   if (await Permission.bluetoothScan.request().isGranted &&
-  //       await Permission.bluetoothConnect.request().isGranted ) {
-  //     List<BluetoothDevice> devices = await printer.getBondedDevices();
-  //     setState(() {
-  //       bluetoothDevices = devices;
-  //     });
-  //   } else {
-  //     print("Bluetooth permissions not granted");
-  //   }
-  //   }
-  //
-  //  // bluetooth connection
-  // Future<bool> _connectBluetooth(BuildContext context) async {
-  //   if (await printer.isConnected ?? false) {
-  //     return true;
-  //   }
-  //
-  //   if (bluetoothDevices.isNotEmpty) {
-  //     BluetoothDevice? selectedDevice = await showDialog<BluetoothDevice>(
-  //       context: context,
-  //       builder: (context) {
-  //         return AlertDialog(
-  //           title: const Text("Select Printer"),
-  //           content: Column(
-  //             mainAxisSize: MainAxisSize.min,
-  //             children: bluetoothDevices.map((device) {
-  //               return ListTile(
-  //                 title: Text(device.name ?? "Unknown"),
-  //                 subtitle: Text(device.address ?? "No address"),
-  //                 onTap: () => Navigator.pop(context, device),
-  //               );
-  //             }).toList(),
-  //           ),
-  //         );
-  //       },
-  //     );
-  //
-  //     if (selectedDevice != null) {
-  //       await printer.connect(selectedDevice);
-  //       return true;
-  //     } else {
-  //       print("No device selected!");
-  //     }
-  //   } else {
-  //     print("No paired devices found!");
-  //   }
-  //
-  //   return false;
-  //   }
-
-  Future getUsbPrint() async {
+   getUsbPrint() async {
     final CapabilityProfile profile = await CapabilityProfile.load();
     final generator = Generator(PaperSize.mm80, profile);
     List<int> bytes = [];
@@ -145,6 +94,10 @@ class _MyHomePageState extends State<MyHomePage> {
         )
     );
     if (captureImage.isNotEmpty) {
+
+
+      // ........printing............
+
       final img.Image image = img.decodeImage(captureImage)!;
       final img.Image resizedImage = img.copyResize(
           image, width: 480, maintainAspect: false);
@@ -159,52 +112,54 @@ class _MyHomePageState extends State<MyHomePage> {
       final Uint8List uint8ListBytes = Uint8List.fromList(bytes);
       print(uint8ListBytes);
 
-
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Printed successfully ....')),
+      );
   }
 
 
-    if (captureImage.isNotEmpty) {
-      // Decode the image
-      final img.Image image = img.decodeImage(captureImage)!;
-
-      // Resize the image if necessary
-      img.Image thumbnail = img.copyResize(
-          image, width: 480, maintainAspect: false);
-
-      // Convert image to Uint8List
-      Uint8List thumbnailBytes = Uint8List.fromList(img.encodePng(thumbnail));
-
-      // Request storage permission
-      final status = await Permission.storage.request();
-      if (status.isGranted) {
-        // Save to the public Downloads directory
-        String downloadPath = '/storage/emulated/0/Download'; // Path to Downloads folder
-        String filePath = '$downloadPath/captured_image_${DateTime
-            .now()
-            .millisecondsSinceEpoch}.png';
-
-        final File file = File(filePath);
-        await file.writeAsBytes(thumbnailBytes);
-
-        print('Image saved to $filePath');
-        // Open the folder
-        openFolder(downloadPath); // Open the folder
-        return filePath; // Return the file path
-      } else {
-        print('Permission denied to access storage.');
-        return null; // Return null if permission is denied
-      }
-    }
-    return null;
-  }
-
-  void openFolder(String folderPath) async {
-    final url = 'file://$folderPath';
-    if (await canLaunch(url)) {
-      await launch(url);
-    } else {
-      print("Cannot open folder.");
-    }
+  //   if (captureImage.isNotEmpty) {
+  //
+  //     // ........saving image............
+  //
+  //
+  //     final img.Image image = img.decodeImage(captureImage)!;
+  //     img.Image thumbnail = img.copyResize(
+  //         image, width: 480, maintainAspect: false);
+  //
+  //     Uint8List thumbnailBytes = Uint8List.fromList(img.encodePng(thumbnail));
+  //
+  //     // Request storage permission
+  //     final status = await Permission.storage.request();
+  //     if (status.isGranted) {
+  //       // Save to the public Downloads directory
+  //       String downloadPath = '/storage/emulated/0/Download'; // Path to Downloads folder
+  //       String filePath = '$downloadPath/captured_image_${DateTime
+  //           .now()
+  //           .millisecondsSinceEpoch}.png';
+  //
+  //       final File file = File(filePath);
+  //       await file.writeAsBytes(thumbnailBytes);
+  //
+  //       print('Image saved to $filePath');
+  //       // Open the folder
+  //       openFolder(downloadPath); // Open the folder
+  //       return filePath; // Return the file path
+  //     } else {
+  //       print('Permission denied to access storage.');
+  //       return null; // Return null if permission is denied
+  //     }
+  //   }
+  //   return null;
+  // }
+  //
+  // void openFolder(String folderPath) async {
+  //   final url = 'file://$folderPath';
+  //   if (await canLaunch(url)) {
+  //     await launch(url);
+  //   } else {
+  //     print("Cannot open folder.");
+  //   }
   }
 
 
@@ -220,7 +175,10 @@ class _MyHomePageState extends State<MyHomePage> {
               Padding(
                 padding: const EdgeInsets.all(8.0),
                 child: TextFormField(
-                  maxLines: 4,
+                  maxLines: null,
+                  keyboardType: TextInputType.multiline,
+                  textInputAction: TextInputAction.newline,
+                  // textInputAction: TextInputAction.done,
                   controller: content,
                   decoration: InputDecoration(
                     enabledBorder: OutlineInputBorder(
@@ -235,11 +193,21 @@ class _MyHomePageState extends State<MyHomePage> {
               SizedBox(
                 height: MediaQuery.of(context).size.height*0.05,
               ),
-              TextButton(
-                onPressed: () {
-                  getUsbPrint();
+              ElevatedButton(
+                onPressed: () async {
+                  if (content.text.isNotEmpty) {
+                   await getUsbPrint();
+
+                   setState(() {
+                     content.clear();
+                   });
+
+                  }else{
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Please Type Something')));
+                  }
+
                 },
-                child: Text('Submit'),)
+                child: Text('Print'),)
             ],
           ),
         ),
