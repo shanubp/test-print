@@ -84,9 +84,10 @@ class _MyHomePageState extends State<MyHomePage> {
             mainAxisSize: MainAxisSize.max,
             children: [
               Text(content.text, style:
-              TextStyle(
+              const TextStyle(
                 color: Colors.black,
                 fontSize: 30,
+                fontWeight: FontWeight.w400,
               ),
               )
             ],
@@ -109,14 +110,12 @@ class _MyHomePageState extends State<MyHomePage> {
       // print(bytes);
       // print(image2);
 
-      final Uint8List uint8ListBytes = Uint8List.fromList(bytes);
-      print(uint8ListBytes);
+      flutterUsbPrinter.write(Uint8List.fromList(bytes));
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Printed successfully ....')),
       );
   }
-
 
   //   if (captureImage.isNotEmpty) {
   //
@@ -162,8 +161,6 @@ class _MyHomePageState extends State<MyHomePage> {
   //   }
   }
 
-
-
   @override
   Widget build(BuildContext context) {
     return SafeArea(
@@ -197,15 +194,12 @@ class _MyHomePageState extends State<MyHomePage> {
                 onPressed: () async {
                   if (content.text.isNotEmpty) {
                    await getUsbPrint();
-
                    setState(() {
                      content.clear();
                    });
-
                   }else{
                     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Please Type Something')));
                   }
-
                 },
                 child: Text('Print'),)
             ],
